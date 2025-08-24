@@ -27,7 +27,7 @@ func main() {
 	// Global router
 	handler := routes.RegisterRoutes()
 
-	// Build server address
+	// server address
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
 	
 	// Create HTTP server

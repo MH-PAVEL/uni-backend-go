@@ -9,6 +9,7 @@ import (
 
 	"github.com/MH-PAVEL/uni-backend-go/internal/config"
 	"github.com/MH-PAVEL/uni-backend-go/internal/database"
+	"github.com/MH-PAVEL/uni-backend-go/internal/middleware"
 	"github.com/MH-PAVEL/uni-backend-go/internal/models"
 	"github.com/MH-PAVEL/uni-backend-go/internal/utils"
 	"go.mongodb.org/mongo-driver/bson"
@@ -102,6 +103,9 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 		utils.ApiError(w, http.StatusInternalServerError, "Failed to generate authentication tokens")
 		return
 	}
+
+	// set cookies
+	utils.SetAccessCookie(w, access)
 	utils.SetRefreshCookie(w, refresh)
 
 	utils.ApiResponse(w, http.StatusOK, AuthResponse{
@@ -142,7 +146,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 	var user bson.M
 	if err := col.FindOne(ctx, filter).Decode(&user); err != nil {
-		utils.ApiError(w, http.StatusUnauthorized, "Invalid credentials")
+		utils.ApiError(w, http.StatusUnauthorized, "User not found")
 		return
 	}
 
@@ -158,6 +162,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		utils.ApiError(w, http.StatusInternalServerError, "Failed to generate authentication tokens")
 		return
 	}
+	utils.SetAccessCookie(w, access)
 	utils.SetRefreshCookie(w, refresh)
 
 	utils.ApiResponse(w, http.StatusOK, AuthResponse{
@@ -241,6 +246,8 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 		utils.ApiError(w, http.StatusInternalServerError, "Failed to generate access token")
 		return
 	}
+	
+	utils.SetAccessCookie(w, access)
 	utils.SetRefreshCookie(w, newRefresh)
 
 	utils.ApiResponse(w, http.StatusOK, AuthResponse{
@@ -272,14 +279,58 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 		"$set": bson.M{"revokedAt": now},
 	})
 
-	// Clear cookie
+
+	// Clear refresh cookie
 	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
+		Name:     utils.RefreshTokenCookieName,
 		Value:    "",
 		Path:     "/api/v1/auth",
 		MaxAge:   -1,
 		HttpOnly: true,
 	})
 
+	// Clear access cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     utils.AccessTokenCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
+
+
 	utils.ApiResponse(w, http.StatusOK, map[string]string{"message": "logged out"})
+}
+
+func GetMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		utils.ApiError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
+		return
+	}
+	uid := r.Context().Value(middleware.CtxUserID)
+	if uid == nil {
+		utils.ApiError(w, http.StatusUnauthorized, "Missing user id")
+		return
+	}
+
+	// Convert userID string -> ObjectID
+	userID, err := primitive.ObjectIDFromHex(uid.(string))
+	if err != nil {
+		utils.ApiError(w, http.StatusUnauthorized, "Invalid user id")
+		return
+	}
+	
+	// DB context with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	col := database.GetCollection(utils.DbName(), utils.UsersCollection())
+
+	var user models.User
+	if err := col.FindOne(ctx, bson.M{"_id": userID}).Decode(&user); err != nil {
+		utils.ApiError(w, http.StatusNotFound, "User not found")
+		return
+	}
+
+	utils.ApiResponse(w, http.StatusOK, user)
 }

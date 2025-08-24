@@ -22,6 +22,11 @@ func DbName() string {
 	return cfg.Database.Name 
 }
 
+const (
+	AccessTokenCookieName  = "access_token"
+	RefreshTokenCookieName = "refresh_token"
+)
+
 // Collection names
 func UsersCollection() string { return "users" }
 func RefreshTokensCollection() string { return "refresh_tokens" }
@@ -66,17 +71,19 @@ func SetRefreshCookie(w http.ResponseWriter, token string) {
 	if cfg == nil {
 		return
 	}
-	
+
 	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
+		Name:     RefreshTokenCookieName,
 		Value:    token,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   false,
-		Path:     "/api/v1/auth",
+		Path:     "/api/v1/auth", // refresh endpoints only is fine
 		MaxAge:   int(cfg.Auth.RefreshTTL.Seconds()),
 	})
 }
+
+
 
 type RefreshRequest struct {
 	RefreshToken string `json:"refreshToken"`
@@ -90,4 +97,22 @@ func GetRefreshTokenFromReq(r *http.Request) string {
 	var rr RefreshRequest
 	_ = SafeDecodeJSON(r, &rr)
 	return strings.TrimSpace(rr.RefreshToken)
+}
+
+
+func SetAccessCookie(w http.ResponseWriter, token string) {
+	cfg := config.AppConfig
+	if cfg == nil {
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     AccessTokenCookieName,
+		Value:    token,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode, // For cross-site apps set None + Secure in prod
+		Secure:   false,                 // true in prod (HTTPS)
+		Path:     "/",                   // send on all routes (incl. /api/v1/auth/me)
+		MaxAge:   int(cfg.Auth.AccessTTL.Seconds()),
+	})
 }
