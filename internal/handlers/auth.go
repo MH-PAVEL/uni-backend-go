@@ -65,7 +65,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	users := database.GetCollection(DbName(), usersColl())
+	users := database.GetCollection(utils.DbName(), utils.UsersCollection())
 
 	// Uniqueness check
 	filter := bson.M{"$or": []bson.M{{"email": req.Email}, {"phone": req.Phone}}}
@@ -97,12 +97,12 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	}
 	uid := res.InsertedID.(primitive.ObjectID)
 
-	access, refresh, err := issueTokens(ctx, uid)
+	access, refresh, err := utils.IssueTokens(ctx, uid)
 	if err != nil {
-		utils.ApiError(w, http.StatusInternalServerError, "Could not issue tokens")
+		utils.ApiError(w, http.StatusInternalServerError, "Failed to generate authentication tokens")
 		return
 	}
-	setRefreshCookie(w, refresh)
+	utils.SetRefreshCookie(w, refresh)
 
 	utils.ApiResponse(w, http.StatusOK, AuthResponse{
 		Token:        access,
@@ -132,7 +132,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	col := database.GetCollection(DbName(), usersColl())
+	col := database.GetCollection(utils.DbName(), utils.UsersCollection())
 	filter := bson.M{
 		"$or": []bson.M{
 			{"email": req.Identifier},
@@ -153,12 +153,12 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 	uid := user["_id"].(primitive.ObjectID)
 
-	access, refresh, err := issueTokens(ctx, uid)
+	access, refresh, err := utils.IssueTokens(ctx, uid)
 	if err != nil {
-		utils.ApiError(w, http.StatusInternalServerError, "Could not issue tokens")
+		utils.ApiError(w, http.StatusInternalServerError, "Failed to generate authentication tokens")
 		return
 	}
-	setRefreshCookie(w, refresh)
+	utils.SetRefreshCookie(w, refresh)
 
 	utils.ApiResponse(w, http.StatusOK, AuthResponse{
 		Token:        access,
@@ -177,7 +177,7 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 		utils.ApiError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
 		return
 	}
-	token := getRefreshTokenFromReq(r)
+	token := utils.GetRefreshTokenFromReq(r)
 	if token == "" {
 		utils.ApiError(w, http.StatusBadRequest, "Missing refresh token")
 		return
@@ -187,15 +187,15 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	rtc := database.GetCollection(DbName(), rtColl())
+	rtc := database.GetCollection(utils.DbName(), utils.RefreshTokensCollection())
 
 	var rt models.RefreshToken
 	if err := rtc.FindOne(ctx, bson.M{"tokenHash": hash}).Decode(&rt); err != nil {
-		utils.ApiError(w, http.StatusInternalServerError, "Could not issue tokens")
+		utils.ApiError(w, http.StatusUnauthorized, "Invalid or expired refresh token")
 		return
 	}
 	if rt.RevokedAt != nil || time.Now().After(rt.ExpiresAt) {
-		utils.ApiError(w, http.StatusInternalServerError, "Could not issue tokens")
+		utils.ApiError(w, http.StatusUnauthorized, "Invalid or expired refresh token")
 		return
 	}
 
@@ -203,7 +203,7 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	newRefresh, err := utils.GenerateSecureToken(32)
 	if err != nil {
-		utils.ApiError(w, http.StatusInternalServerError, "Could not issue tokens")
+		utils.ApiError(w, http.StatusInternalServerError, "Failed to generate refresh token")
 		return
 	}
 	newHash := utils.SHA256Hex(newRefresh)
@@ -214,7 +214,13 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 			"replacedByTokenHash": newHash,
 		},
 	}); err != nil {
-		utils.ApiError(w, http.StatusInternalServerError, "Could not Refresh issue tokens")
+		utils.ApiError(w, http.StatusInternalServerError, "Failed to revoke old refresh token")
+		return
+	}
+
+	cfg := config.AppConfig
+	if cfg == nil {
+		utils.ApiError(w, http.StatusInternalServerError, "Configuration not loaded")
 		return
 	}
 
@@ -222,21 +228,20 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 		UserID:    rt.UserID,
 		TokenHash: newHash,
 		CreatedAt: now,
-		ExpiresAt: now.Add(RefreshTTL),
+		ExpiresAt: now.Add(cfg.Auth.RefreshTTL),
 	})
 	if err != nil {
-		utils.ApiError(w, http.StatusInternalServerError, "Could not issue tokens")
+		utils.ApiError(w, http.StatusInternalServerError, "Failed to store new refresh token")
 		return
 	}
 
 	// New access token
-	secret := config.Get("JWT_SECRET")
-	access, err := utils.GenerateJWT(secret, rt.UserID.Hex(), AccessTTL)
+	access, err := utils.GenerateJWT(cfg.Auth.JWTSecret, rt.UserID.Hex(), cfg.Auth.AccessTTL)
 	if err != nil {
-		utils.ApiError(w, http.StatusInternalServerError, "Could not issue tokens")
+		utils.ApiError(w, http.StatusInternalServerError, "Failed to generate access token")
 		return
 	}
-	setRefreshCookie(w, newRefresh)
+	utils.SetRefreshCookie(w, newRefresh)
 
 	utils.ApiResponse(w, http.StatusOK, AuthResponse{
 		Token:        access,
@@ -249,7 +254,7 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 		utils.ApiError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
 		return
 	}
-	token := getRefreshTokenFromReq(r)
+	token := utils.GetRefreshTokenFromReq(r)
 	if token == "" {
 		utils.ApiError(w, http.StatusBadRequest, "Missing refresh token")
 		return
@@ -259,7 +264,7 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	rtc := database.GetCollection(DbName(), rtColl())
+	rtc := database.GetCollection(utils.DbName(), utils.RefreshTokensCollection())
 	now := time.Now()
 	_, _ = rtc.UpdateOne(ctx, bson.M{
 		"tokenHash": hash, "revokedAt": bson.M{"$exists": false},

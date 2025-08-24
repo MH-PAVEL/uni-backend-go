@@ -14,7 +14,12 @@ type ctxKey string
 const CtxUserID ctxKey = "userID"
 
 func AuthMiddleware(next http.Handler) http.Handler {
-	secret := config.Get("JWT_SECRET")
+	cfg := config.AppConfig
+	if cfg == nil {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "Server configuration error", http.StatusInternalServerError)
+		})
+	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := r.Header.Get("Authorization")
@@ -25,7 +30,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		tokenStr := strings.TrimPrefix(h, "Bearer ")
 
 		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-			return []byte(secret), nil
+			return []byte(cfg.Auth.JWTSecret), nil
 		})
 		if err != nil || !token.Valid {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
