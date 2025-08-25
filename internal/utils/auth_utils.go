@@ -13,23 +13,12 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// DbName returns the database name from config
-func DbName() string { 
-	cfg := config.AppConfig
-	if cfg == nil {
-		return ""
-	}
-	return cfg.Database.Name 
-}
 
 const (
 	AccessTokenCookieName  = "access_token"
 	RefreshTokenCookieName = "refresh_token"
 )
 
-// Collection names
-func UsersCollection() string { return "users" }
-func RefreshTokensCollection() string { return "refresh_tokens" }
 
 // IssueTokens creates a short-lived access JWT and a long-lived refresh token (hashed & stored).
 func IssueTokens(ctx context.Context, userID primitive.ObjectID) (access, refresh string, err error) {
@@ -57,7 +46,7 @@ func IssueTokens(ctx context.Context, userID primitive.ObjectID) (access, refres
 		ExpiresAt: now.Add(cfg.Auth.RefreshTTL),
 	}
 
-	col := database.GetCollection(DbName(), RefreshTokensCollection())
+	col := database.GetCollection(database.DbName(), database.RefreshTokensCollection)
 	if _, err := col.InsertOne(ctx, doc); err != nil {
 		return "", "", err
 	}

@@ -20,22 +20,46 @@ import (
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 type SignupRequest struct {
-	Email    string `json:"email"`
-	Phone    string `json:"phone"`
-	Password string `json:"password"`
+	Email    string `json:"email" example:"F2HbU@example.com"`
+	Phone    string `json:"phone" example:"01234567890"`
+	Password string `json:"password" example:"password123"`
 }
 
 type LoginRequest struct {
-	Identifier string `json:"identifier"` // email or phone
-	Password   string `json:"password"`
+	Identifier string `json:"identifier" example:"F2HbU@example.com"` // email or phone
+	Password   string `json:"password" example:"password123"`
 }
 
 type AuthResponse struct {
-	Token        string      `json:"token"`
-	RefreshToken string      `json:"refreshToken"`
+	Token        string      `json:"token" example:"<jwt_access_token>"`
+	RefreshToken string      `json:"refreshToken" example:"<refresh_token>"`
 	User         interface{} `json:"user,omitempty"`
 }
 
+// LogoutResponse documents a simple message payload
+type LogoutResponse struct {
+    Message string `json:"message" example:"logged out"`
+}
+
+
+// ErrorResponse is a generic error schema
+// @Description Error response with a message field
+type ErrorResponse struct {
+    Message string `json:"message" example:"Unauthorized"`
+}
+
+
+// @Summary      Signup
+// @Description  Create a user and return access & refresh tokens (also set as cookies).
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        payload  body      SignupRequest  true  "Signup payload"
+// @Success      200      {object}  AuthResponse
+// @Failure      400      {object}  ErrorResponse  "Invalid request"
+// @Failure      409      {object}  ErrorResponse  "User already exists"
+// @Failure      500      {object}  ErrorResponse  "Internal error"
+// @Router       /api/v1/auth/signup [post]
 func Signup(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		utils.ApiError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
@@ -66,7 +90,7 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	users := database.GetCollection(utils.DbName(), utils.UsersCollection())
+	users := database.GetCollection(database.DbName(), database.UsersCollection)
 
 	// Uniqueness check
 	filter := bson.M{"$or": []bson.M{{"email": req.Email}, {"phone": req.Phone}}}
@@ -120,6 +144,17 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      Login
+// @Description  Login with email or phone and get access & refresh tokens (also set as cookies).
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        payload  body      LoginRequest  true  "Login payload"
+// @Success      200      {object}  AuthResponse
+// @Failure      400      {object}  ErrorResponse  "Invalid request"
+// @Failure      401      {object}  ErrorResponse  "Invalid credentials"
+// @Failure      500      {object}  ErrorResponse  "Internal error"
+// @Router       /api/v1/auth/login [post]
 func Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		utils.ApiError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
@@ -136,7 +171,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	col := database.GetCollection(utils.DbName(), utils.UsersCollection())
+	col := database.GetCollection(database.DbName(), database.UsersCollection)
 	filter := bson.M{
 		"$or": []bson.M{
 			{"email": req.Identifier},
@@ -177,6 +212,15 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      Refresh access token
+// @Description  Rotate refresh token and return a new access token (cookies updated). Requires valid refresh token cookie.
+// @Tags         auth
+// @Produce      json
+// @Success      200  {object}  AuthResponse
+// @Failure      400  {object}  ErrorResponse  "Missing refresh token"
+// @Failure      401  {object}  ErrorResponse  "Invalid or expired refresh token"
+// @Failure      500  {object}  ErrorResponse  "Internal error"
+// @Router       /api/v1/auth/refresh [post]
 func Refresh(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		utils.ApiError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
@@ -192,7 +236,7 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	rtc := database.GetCollection(utils.DbName(), utils.RefreshTokensCollection())
+	rtc := database.GetCollection(database.DbName(), database.RefreshTokensCollection)
 
 	var rt models.RefreshToken
 	if err := rtc.FindOne(ctx, bson.M{"tokenHash": hash}).Decode(&rt); err != nil {
@@ -256,6 +300,13 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      Logout
+// @Description  Revoke current refresh token and clear auth cookies.
+// @Tags         auth
+// @Produce      json
+// @Success      200  {object}  LogoutResponse
+// @Failure      400  {object}  ErrorResponse  "Missing refresh token"
+// @Router       /api/v1/auth/logout [post]
 func Logout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		utils.ApiError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
@@ -271,7 +322,7 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	rtc := database.GetCollection(utils.DbName(), utils.RefreshTokensCollection())
+	rtc := database.GetCollection(database.DbName(), database.RefreshTokensCollection)
 	now := time.Now()
 	_, _ = rtc.UpdateOne(ctx, bson.M{
 		"tokenHash": hash, "revokedAt": bson.M{"$exists": false},
@@ -299,9 +350,20 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 	})
 
 
-	utils.ApiResponse(w, http.StatusOK, map[string]string{"message": "logged out"})
+	utils.ApiResponse(w, http.StatusOK, LogoutResponse{
+		Message: "Logout successful",
+	})
 }
 
+// @Summary      Get current user
+// @Description  Return the authenticated user.
+// @Tags         auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  models.User
+// @Failure      401  {object}  ErrorResponse  "Unauthorized"
+// @Failure      404  {object}  ErrorResponse  "User not found"
+// @Router       /api/v1/auth/me [get]
 func GetMe(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		utils.ApiError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
@@ -324,7 +386,7 @@ func GetMe(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	col := database.GetCollection(utils.DbName(), utils.UsersCollection())
+	col := database.GetCollection(database.DbName(), database.UsersCollection)
 
 	var user models.User
 	if err := col.FindOne(ctx, bson.M{"_id": userID}).Decode(&user); err != nil {

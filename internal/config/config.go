@@ -8,26 +8,25 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Config holds all application configuration
+
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	Auth     AuthConfig
 }
 
-// ServerConfig holds server-related configuration
+
 type ServerConfig struct {
 	Port string
 	Host string
 }
 
-// DatabaseConfig holds database-related configuration
+
 type DatabaseConfig struct {
 	URI  string
 	Name string
 }
 
-// AuthConfig holds authentication-related configuration
 type AuthConfig struct {
 	JWTSecret   string
 	AccessTTL   time.Duration

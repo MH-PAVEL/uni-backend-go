@@ -12,8 +12,20 @@ import (
 
 	"github.com/MH-PAVEL/uni-backend-go/internal/config"
 	"github.com/MH-PAVEL/uni-backend-go/internal/database"
+	_ "github.com/MH-PAVEL/uni-backend-go/internal/docs"
+
 	"github.com/MH-PAVEL/uni-backend-go/internal/routes"
 )
+
+// @title           Uni Backend API
+// @version         1.0
+// @description     University backend API.
+// @BasePath        /
+// @schemes         http
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Use: "Bearer <access_token>"
 
 func main() {
 	// Load env and config
@@ -26,6 +38,8 @@ func main() {
 
 	// Global router
 	handler := routes.RegisterRoutes()
+
+
 
 	// server address
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)

@@ -1,4 +1,223 @@
+basePath: /
+definitions:
+  handlers.AuthResponse:
+    properties:
+      refreshToken:
+        example: <refresh_token>
+        type: string
+      token:
+        example: <jwt_access_token>
+        type: string
+      user: {}
+    type: object
+  handlers.ErrorResponse:
+    description: Error response with a message field
+    properties:
+      message:
+        example: Unauthorized
+        type: string
+    type: object
+  handlers.LoginRequest:
+    properties:
+      identifier:
+        description: email or phone
+        example: F2HbU@example.com
+        type: string
+      password:
+        example: password123
+        type: string
+    type: object
+  handlers.LogoutResponse:
+    properties:
+      message:
+        example: logged out
+        type: string
+    type: object
+  handlers.SignupRequest:
+    properties:
+      email:
+        example: F2HbU@example.com
+        type: string
+      password:
+        example: password123
+        type: string
+      phone:
+        example: "01234567890"
+        type: string
+    type: object
+  models.User:
+    properties:
+      createdAt:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      phone:
+        type: string
+      updatedAt:
+        type: string
+    type: object
 info:
   contact: {}
-paths: {}
+  description: University backend API.
+  title: Uni Backend API
+  version: "1.0"
+paths:
+  /api/health:
+    get:
+      description: Returns 200 OK when the server is healthy
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: ✅ Server is healthy
+          schema:
+            type: string
+      summary: Health check
+      tags:
+      - health
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Login with email or phone and get access & refresh tokens (also
+        set as cookies).
+      parameters:
+      - description: Login payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.AuthResponse'
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Invalid credentials
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Login
+      tags:
+      - auth
+  /api/v1/auth/logout:
+    post:
+      description: Revoke current refresh token and clear auth cookies.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.LogoutResponse'
+        "400":
+          description: Missing refresh token
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Logout
+      tags:
+      - auth
+  /api/v1/auth/me:
+    get:
+      description: Return the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - auth
+  /api/v1/auth/refresh:
+    post:
+      description: Rotate refresh token and return a new access token (cookies updated).
+        Requires valid refresh token cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.AuthResponse'
+        "400":
+          description: Missing refresh token
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Invalid or expired refresh token
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Refresh access token
+      tags:
+      - auth
+  /api/v1/auth/signup:
+    post:
+      consumes:
+      - application/json
+      description: Create a user and return access & refresh tokens (also set as cookies).
+      parameters:
+      - description: Signup payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SignupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.AuthResponse'
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: User already exists
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Signup
+      tags:
+      - auth
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    description: 'Use: "Bearer <access_token>"'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"
