@@ -70,23 +70,23 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Extract sub robustly (string or number)
-		var sub string
-		switch v := claims["sub"].(type) {
+		// Extract _id robustly (string or number)
+		var userID string
+		switch v := claims["_id"].(type) {
 		case string:
-			sub = v
+			userID = v
 		case float64:
-			sub = strconv.FormatInt(int64(v), 10)
+			userID = strconv.FormatInt(int64(v), 10)
 		default:
 			unauth(w)
 			return
 		}
-		if sub == "" {
+		if userID == "" {
 			unauth(w)
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), CtxUserID, sub)
+		ctx := context.WithValue(r.Context(), CtxUserID, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -8,7 +8,7 @@ import (
 
 func GenerateJWT(secret, userID string, ttl time.Duration) (string, error) {
 	claims := jwt.MapClaims{
-		"sub": userID,
+		"_id": userID,
 		"iat": time.Now().Unix(),
 		"exp": time.Now().Add(ttl).Unix(),
 	}

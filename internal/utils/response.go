@@ -15,7 +15,7 @@ func ApiError(w http.ResponseWriter, status int, msg string) {
 	ApiResponse(w, status, map[string]string{"error": msg})
 }
 
-// Optional: strict decoder helper
+// strict decoder helper
 func SafeDecodeJSON(r *http.Request, dst interface{}) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()

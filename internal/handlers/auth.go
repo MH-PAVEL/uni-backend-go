@@ -213,7 +213,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary      Refresh access token
-// @Description  Rotate refresh token and return a new access token (cookies updated). Requires valid refresh token cookie.
+// @Description  Get a new access token using a valid refresh token
 // @Tags         auth
 // @Produce      json
 // @Success      200  {object}  AuthResponse
@@ -226,71 +226,68 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 		utils.ApiError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
 		return
 	}
+	
 	token := utils.GetRefreshTokenFromReq(r)
 	if token == "" {
 		utils.ApiError(w, http.StatusBadRequest, "Missing refresh token")
 		return
 	}
-	hash := utils.SHA256Hex(token)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	rtc := database.GetCollection(database.DbName(), database.RefreshTokensCollection)
-
-	var rt models.RefreshToken
-	if err := rtc.FindOne(ctx, bson.M{"tokenHash": hash}).Decode(&rt); err != nil {
-		utils.ApiError(w, http.StatusUnauthorized, "Invalid or expired refresh token")
-		return
-	}
-	if rt.RevokedAt != nil || time.Now().After(rt.ExpiresAt) {
-		utils.ApiError(w, http.StatusUnauthorized, "Invalid or expired refresh token")
-		return
-	}
-
-	// Rotate refresh token
-	now := time.Now()
-	newRefresh, err := utils.GenerateSecureToken(32)
+	// Find user by refresh token hash
+	users := database.GetCollection(database.DbName(), database.UsersCollection)
+	tokenHash := utils.SHA256Hex(token)
+	
+	var user models.User
+	err := users.FindOne(ctx, bson.M{
+		"refreshTokenHash": tokenHash,
+		"refreshTokenExpires": bson.M{"$gt": time.Now()},
+	}).Decode(&user)
+	
 	if err != nil {
-		utils.ApiError(w, http.StatusInternalServerError, "Failed to generate refresh token")
-		return
-	}
-	newHash := utils.SHA256Hex(newRefresh)
-
-	if _, err := rtc.UpdateByID(ctx, rt.ID, bson.M{
-		"$set": bson.M{
-			"revokedAt":           now,
-			"replacedByTokenHash": newHash,
-		},
-	}); err != nil {
-		utils.ApiError(w, http.StatusInternalServerError, "Failed to revoke old refresh token")
+		utils.ApiError(w, http.StatusUnauthorized, "Invalid or expired refresh token")
 		return
 	}
 
+	// Generate new access token
 	cfg := config.AppConfig
 	if cfg == nil {
 		utils.ApiError(w, http.StatusInternalServerError, "Configuration not loaded")
 		return
 	}
 
-	_, err = rtc.InsertOne(ctx, models.RefreshToken{
-		UserID:    rt.UserID,
-		TokenHash: newHash,
-		CreatedAt: now,
-		ExpiresAt: now.Add(cfg.Auth.RefreshTTL),
-	})
-	if err != nil {
-		utils.ApiError(w, http.StatusInternalServerError, "Failed to store new refresh token")
-		return
-	}
-
-	// New access token
-	access, err := utils.GenerateJWT(cfg.Auth.JWTSecret, rt.UserID.Hex(), cfg.Auth.AccessTTL)
+	access, err := utils.GenerateJWT(cfg.Auth.JWTSecret, user.ID.Hex(), cfg.Auth.AccessTTL)
 	if err != nil {
 		utils.ApiError(w, http.StatusInternalServerError, "Failed to generate access token")
 		return
 	}
+
+	// Generate new refresh token
+	newRefresh, err := utils.GenerateSecureToken(32)
+	if err != nil {
+		utils.ApiError(w, http.StatusInternalServerError, "Failed to generate refresh token")
+		return
+	}
+
+	// Update user with new refresh token
+	newHash := utils.SHA256Hex(newRefresh)
+	expiresAt := time.Now().Add(cfg.Auth.RefreshTTL)
 	
+	_, err = users.UpdateOne(ctx, bson.M{"_id": user.ID}, bson.M{
+		"$set": bson.M{
+			"refreshTokenHash": newHash,
+			"refreshTokenExpires": expiresAt,
+			"updatedAt": time.Now(),
+		},
+	})
+	
+	if err != nil {
+		utils.ApiError(w, http.StatusInternalServerError, "Failed to update refresh token")
+		return
+	}
+
 	utils.SetAccessCookie(w, access)
 	utils.SetRefreshCookie(w, newRefresh)
 
@@ -301,7 +298,7 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary      Logout
-// @Description  Revoke current refresh token and clear auth cookies.
+// @Description  Revoke current refresh token and clear auth cookies
 // @Tags         auth
 // @Produce      json
 // @Success      200  {object}  LogoutResponse
@@ -312,26 +309,33 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 		utils.ApiError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
 		return
 	}
+	
 	token := utils.GetRefreshTokenFromReq(r)
 	if token == "" {
 		utils.ApiError(w, http.StatusBadRequest, "Missing refresh token")
 		return
 	}
-	hash := utils.SHA256Hex(token)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	rtc := database.GetCollection(database.DbName(), database.RefreshTokensCollection)
-	now := time.Now()
-	_, _ = rtc.UpdateOne(ctx, bson.M{
-		"tokenHash": hash, "revokedAt": bson.M{"$exists": false},
+	// Find and revoke refresh token
+	users := database.GetCollection(database.DbName(), database.UsersCollection)
+	tokenHash := utils.SHA256Hex(token)
+	
+	_, _ = users.UpdateOne(ctx, bson.M{
+		"refreshTokenHash": tokenHash,
 	}, bson.M{
-		"$set": bson.M{"revokedAt": now},
+		"$unset": bson.M{
+			"refreshTokenHash": "",
+			"refreshTokenExpires": "",
+		},
+		"$set": bson.M{
+			"updatedAt": time.Now(),
+		},
 	})
 
-
-	// Clear refresh cookie
+	// Clear cookies regardless of success
 	http.SetCookie(w, &http.Cookie{
 		Name:     utils.RefreshTokenCookieName,
 		Value:    "",
@@ -340,7 +344,6 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 	})
 
-	// Clear access cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     utils.AccessTokenCookieName,
 		Value:    "",
@@ -348,7 +351,6 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		HttpOnly: true,
 	})
-
 
 	utils.ApiResponse(w, http.StatusOK, LogoutResponse{
 		Message: "Logout successful",
