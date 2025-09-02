@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -14,16 +15,16 @@ import (
 )
 
 type ProfileCompletionRequest struct {
-	FullName            string                    `json:"fullName"            example:"John Doe"`
-	Country             string                    `json:"country"             example:"Bangladesh"`
-	Address             string                    `json:"address"             example:"Dhaka, Bangladesh"`
-	NID                 string                    `json:"nid"                 example:"1234567890123"`
-	PlanningMonthToStart string                   `json:"planningMonthToStart" example:"January"`
-	PlanningYearToStart  string                   `json:"planningYearToStart"  example:"2025"`
-	SSC                 *models.Education         `json:"ssc,omitempty"`
-	HSC                 *models.Education         `json:"hsc,omitempty"`
-	HigherEducation     *models.HigherEducation   `json:"higherEducation,omitempty"`
-	LanguageTests       []models.LanguageTest     `json:"languageTests,omitempty"`
+	FullName            string
+	Country             string
+	Address             string
+	NID                 string
+	PlanningMonthToStart string
+	PlanningYearToStart  string
+	SSC                 *models.Education
+	HSC                 *models.HigherEducation
+	HigherEducation     *models.HigherEducation
+	LanguageTests       []models.LanguageTest
 }
 
 type ProfileResponse struct {
@@ -31,12 +32,19 @@ type ProfileResponse struct {
 }
 
 // @Summary      Complete user profile
-// @Description  Complete user profile with additional information after signup
+// @Description  Complete user profile with additional information and document uploads after signup
 // @Tags         profile
-// @Accept       json
+// @Accept       multipart/form-data
 // @Produce      json
 // @Security     BearerAuth
-// @Param        payload  body      ProfileCompletionRequest  true  "Profile completion payload"
+// @Param        fullName formData string true "Full name"
+// @Param        country formData string true "Country"
+// @Param        address formData string true "Address"
+// @Param        nid formData string true "National ID"
+// @Param        planningMonthToStart formData string false "Planning month to start"
+// @Param        planningYearToStart formData string false "Planning year to start"
+// @Param        sscCertificate formData file true "SSC Certificate (PDF)"
+// @Param        sscMarksheet formData file false "SSC Marksheet (PDF, optional)"
 // @Success      200      {object}  ProfileResponse
 // @Failure      400      {object}  handlers.ErrorResponse  "Invalid request"
 // @Failure      401      {object}  handlers.ErrorResponse  "Unauthorized"
@@ -50,22 +58,35 @@ func CompleteProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user ID from context (set by AuthMiddleware)
-	userIDStr := r.Context().Value(middleware.CtxUserID)
-	if userIDStr == nil {
-		utils.ApiError(w, http.StatusUnauthorized, "Missing user id")
+	// // userIDStr := r.Context().Value(middleware.CtxUserID)
+	// userIDStr := "68b62739cc8f4985cff260b0"
+	// if userIDStr == nil {
+	// 	utils.ApiError(w, http.StatusUnauthorized, "Missing user id")
+	// 	return
+	// }
+
+	// userID, err := primitive.ObjectIDFromHex(userIDStr.(string))
+	// if err != nil {
+	// 	utils.ApiError(w, http.StatusUnauthorized, "Invalid user id")
+	// 	return
+	// }
+
+	userID := "68b7666f99daa59355222735"
+
+	// Parse multipart form data (max 32MB)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		utils.ApiError(w, http.StatusBadRequest, "Failed to parse form data")
 		return
 	}
 
-	userID, err := primitive.ObjectIDFromHex(userIDStr.(string))
-	if err != nil {
-		utils.ApiError(w, http.StatusUnauthorized, "Invalid user id")
-		return
-	}
-
-	var req ProfileCompletionRequest
-	if err := utils.SafeDecodeJSON(r, &req); err != nil {
-		utils.ApiError(w, http.StatusBadRequest, "Invalid request")
-		return
+	// Extract form fields
+	req := ProfileCompletionRequest{
+		FullName:             r.FormValue("fullName"),
+		Country:              r.FormValue("country"),
+		Address:              r.FormValue("address"),
+		NID:                  r.FormValue("nid"),
+		PlanningMonthToStart: r.FormValue("planningMonthToStart"),
+		PlanningYearToStart:  r.FormValue("planningYearToStart"),
 	}
 
 	// Validate required fields
@@ -74,8 +95,35 @@ func CompleteProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	// Get uploaded files
+	sscCertificateFile, sscCertificateHeader, err := r.FormFile("sscCertificate")
+	if err != nil {
+		utils.ApiError(w, http.StatusBadRequest, "SSC Certificate is required")
+		return
+	}
+	defer sscCertificateFile.Close()
+
+	sscMarksheetFile, sscMarksheetHeader, err := r.FormFile("sscMarksheet")
+	var sscMarksheetUploaded map[string]interface{}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
+
+	// Upload SSC Certificate (required)
+	sscCertificateUploaded, err := utils.UploadFile(ctx, sscCertificateHeader, "ssc_certificates")
+	if err != nil {
+		utils.ApiError(w, http.StatusBadRequest, fmt.Sprintf("Failed to upload SSC Certificate: %v", err))
+		return
+	}
+
+	// Upload SSC Marksheet (optional)
+	if sscMarksheetFile != nil && sscMarksheetHeader != nil {
+		sscMarksheetUploaded, err = utils.UploadFile(ctx, sscMarksheetHeader, "ssc_marksheets")
+		if err != nil {
+			utils.ApiError(w, http.StatusBadRequest, fmt.Sprintf("Failed to upload SSC Marksheet: %v", err))
+			return
+		}
+	}
 
 	users := database.GetCollection(database.DbName(), database.UsersCollection)
 
@@ -85,6 +133,26 @@ func CompleteProfile(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		utils.ApiError(w, http.StatusConflict, "NID already exists")
 		return
+	}
+
+	// Prepare document data
+	sscCertificateDoc := &models.Document{
+		FileID:   sscCertificateUploaded["fileId"].(string),
+		FileName: sscCertificateUploaded["fileName"].(string),
+		FileURL:  sscCertificateUploaded["fileUrl"].(string),
+		FileSize: sscCertificateUploaded["fileSize"].(int64),
+		MimeType: sscCertificateUploaded["mimeType"].(string),
+	}
+
+	var sscMarksheetDoc *models.Document
+	if sscMarksheetUploaded != nil {
+		sscMarksheetDoc = &models.Document{
+			FileID:   sscMarksheetUploaded["fileId"].(string),
+			FileName: sscMarksheetUploaded["fileName"].(string),
+			FileURL:  sscMarksheetUploaded["fileUrl"].(string),
+			FileSize: sscMarksheetUploaded["fileSize"].(int64),
+			MimeType: sscMarksheetUploaded["mimeType"].(string),
+		}
 	}
 
 	// Update user profile
@@ -101,6 +169,8 @@ func CompleteProfile(w http.ResponseWriter, r *http.Request) {
 			"hsc":                   req.HSC,
 			"higherEducation":       req.HigherEducation,
 			"languageTests":         req.LanguageTests,
+			"ssCertificate":         sscCertificateDoc,
+			"sscMarksheet":          sscMarksheetDoc,
 			"updatedAt":             time.Now(),
 		},
 	}

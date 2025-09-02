@@ -284,9 +284,9 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Complete user profile with additional information after signup",
+                "description": "Complete user profile with additional information and document uploads after signup",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -297,13 +297,57 @@ const docTemplate = `{
                 "summary": "Complete user profile",
                 "parameters": [
                     {
-                        "description": "Profile completion payload",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handlers.ProfileCompletionRequest"
-                        }
+                        "type": "string",
+                        "description": "Full name",
+                        "name": "fullName",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Country",
+                        "name": "country",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Address",
+                        "name": "address",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "National ID",
+                        "name": "nid",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Planning month to start",
+                        "name": "planningMonthToStart",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Planning year to start",
+                        "name": "planningYearToStart",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "SSC Certificate (PDF)",
+                        "name": "sscCertificate",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "SSC Marksheet (PDF, optional)",
+                        "name": "sscMarksheet",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -421,50 +465,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handlers.ProfileCompletionRequest": {
-            "type": "object",
-            "properties": {
-                "address": {
-                    "type": "string",
-                    "example": "Dhaka, Bangladesh"
-                },
-                "country": {
-                    "type": "string",
-                    "example": "Bangladesh"
-                },
-                "fullName": {
-                    "type": "string",
-                    "example": "John Doe"
-                },
-                "higherEducation": {
-                    "$ref": "#/definitions/models.HigherEducation"
-                },
-                "hsc": {
-                    "$ref": "#/definitions/models.Education"
-                },
-                "languageTests": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.LanguageTest"
-                    }
-                },
-                "nid": {
-                    "type": "string",
-                    "example": "1234567890123"
-                },
-                "planningMonthToStart": {
-                    "type": "string",
-                    "example": "January"
-                },
-                "planningYearToStart": {
-                    "type": "string",
-                    "example": "2025"
-                },
-                "ssc": {
-                    "$ref": "#/definitions/models.Education"
-                }
-            }
-        },
         "handlers.ProfileResponse": {
             "type": "object",
             "properties": {
@@ -488,6 +488,26 @@ const docTemplate = `{
                 "phone": {
                     "type": "string",
                     "example": "01234567890"
+                }
+            }
+        },
+        "models.Document": {
+            "type": "object",
+            "properties": {
+                "fileId": {
+                    "type": "string"
+                },
+                "fileName": {
+                    "type": "string"
+                },
+                "fileSize": {
+                    "type": "integer"
+                },
+                "fileUrl": {
+                    "type": "string"
+                },
+                "mimeType": {
+                    "type": "string"
                 }
             }
         },
@@ -591,6 +611,14 @@ const docTemplate = `{
                     "description": "Profile completion fields",
                     "type": "boolean"
                 },
+                "ssCertificate": {
+                    "description": "Document fields",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Document"
+                        }
+                    ]
+                },
                 "ssc": {
                     "description": "Education fields",
                     "allOf": [
@@ -598,6 +626,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/models.Education"
                         }
                     ]
+                },
+                "sscMarksheet": {
+                    "$ref": "#/definitions/models.Document"
                 },
                 "updatedAt": {
                     "type": "string"

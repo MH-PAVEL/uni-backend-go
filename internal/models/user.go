@@ -31,6 +31,10 @@ type User struct {
 	// Language tests
 	LanguageTests       []LanguageTest     `bson:"languageTests,omitempty" json:"languageTests,omitempty"`
 	
+	// Document fields
+	SSCertificate       *Document          `bson:"ssCertificate,omitempty" json:"ssCertificate,omitempty"`
+	SSCMarksheet        *Document          `bson:"sscMarksheet,omitempty" json:"sscMarksheet,omitempty"`
+	
 	CreatedAt           time.Time          `bson:"createdAt"               json:"createdAt"`
 	UpdatedAt           time.Time          `bson:"updatedAt"               json:"updatedAt"`
 }
@@ -53,4 +57,12 @@ type LanguageTest struct {
 	TestType  string `bson:"testType"  json:"testType"`  // IELTS, TOEFL, etc.
 	Score     string `bson:"score"     json:"score"`
 	TestYear  string `bson:"testYear"  json:"testYear"`
+}
+
+type Document struct {
+	FileID   string `bson:"fileId"   json:"fileId"`
+	FileName string `bson:"fileName" json:"fileName"`
+	FileURL  string `bson:"fileUrl"  json:"fileUrl"`
+	FileSize int64  `bson:"fileSize" json:"fileSize"`
+	MimeType string `bson:"mimeType" json:"mimeType"`
 }

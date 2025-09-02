@@ -11,7 +11,7 @@ func RegisterProfileRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/profile/complete",
 		middleware.Chain(
 			http.HandlerFunc(handlers.CompleteProfile),
-			middleware.AuthMiddleware,
+			// middleware.AuthMiddleware,
 		),
 	)
 

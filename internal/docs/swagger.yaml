@@ -33,37 +33,6 @@ definitions:
         example: logged out
         type: string
     type: object
-  handlers.ProfileCompletionRequest:
-    properties:
-      address:
-        example: Dhaka, Bangladesh
-        type: string
-      country:
-        example: Bangladesh
-        type: string
-      fullName:
-        example: John Doe
-        type: string
-      higherEducation:
-        $ref: '#/definitions/models.HigherEducation'
-      hsc:
-        $ref: '#/definitions/models.Education'
-      languageTests:
-        items:
-          $ref: '#/definitions/models.LanguageTest'
-        type: array
-      nid:
-        example: "1234567890123"
-        type: string
-      planningMonthToStart:
-        example: January
-        type: string
-      planningYearToStart:
-        example: "2025"
-        type: string
-      ssc:
-        $ref: '#/definitions/models.Education'
-    type: object
   handlers.ProfileResponse:
     properties:
       message:
@@ -80,6 +49,19 @@ definitions:
         type: string
       phone:
         example: "01234567890"
+        type: string
+    type: object
+  models.Document:
+    properties:
+      fileId:
+        type: string
+      fileName:
+        type: string
+      fileSize:
+        type: integer
+      fileUrl:
+        type: string
+      mimeType:
         type: string
     type: object
   models.Education:
@@ -149,10 +131,16 @@ definitions:
       profileCompletion:
         description: Profile completion fields
         type: boolean
+      ssCertificate:
+        allOf:
+        - $ref: '#/definitions/models.Document'
+        description: Document fields
       ssc:
         allOf:
         - $ref: '#/definitions/models.Education'
         description: Education fields
+      sscMarksheet:
+        $ref: '#/definitions/models.Document'
       updatedAt:
         type: string
     type: object
@@ -335,15 +323,47 @@ paths:
   /api/v1/profile/complete:
     post:
       consumes:
-      - application/json
-      description: Complete user profile with additional information after signup
+      - multipart/form-data
+      description: Complete user profile with additional information and document
+        uploads after signup
       parameters:
-      - description: Profile completion payload
-        in: body
-        name: payload
+      - description: Full name
+        in: formData
+        name: fullName
         required: true
-        schema:
-          $ref: '#/definitions/handlers.ProfileCompletionRequest'
+        type: string
+      - description: Country
+        in: formData
+        name: country
+        required: true
+        type: string
+      - description: Address
+        in: formData
+        name: address
+        required: true
+        type: string
+      - description: National ID
+        in: formData
+        name: nid
+        required: true
+        type: string
+      - description: Planning month to start
+        in: formData
+        name: planningMonthToStart
+        type: string
+      - description: Planning year to start
+        in: formData
+        name: planningYearToStart
+        type: string
+      - description: SSC Certificate (PDF)
+        in: formData
+        name: sscCertificate
+        required: true
+        type: file
+      - description: SSC Marksheet (PDF, optional)
+        in: formData
+        name: sscMarksheet
+        type: file
       produces:
       - application/json
       responses:

@@ -12,6 +12,7 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	Auth     AuthConfig
+	Appwrite AppwriteConfig
 }
 
 type ServerConfig struct {
@@ -28,6 +29,13 @@ type AuthConfig struct {
 	JWTSecret   string
 	AccessTTL   time.Duration
 	RefreshTTL  time.Duration
+}
+
+type AppwriteConfig struct {
+	Endpoint string
+	ProjectID string
+	APIKey    string
+	BucketID  string
 }
 
 var AppConfig *Config
@@ -63,6 +71,12 @@ func LoadConfig() *Config {
 			AccessTTL:  accessTTL,
 			RefreshTTL: refreshTTL,
 		},
+		Appwrite: AppwriteConfig{
+			Endpoint:  getEnv("APPWRITE_ENDPOINT", ""),
+			ProjectID: getEnv("APPWRITE_PROJECT_ID", ""),
+			APIKey:    getEnv("APPWRITE_API_KEY", ""),
+			BucketID:  getEnv("APPWRITE_BUCKET_ID", ""),
+		},
 	}
 
 	// Validate required fields
@@ -74,6 +88,18 @@ func LoadConfig() *Config {
 	}
 	if config.Auth.JWTSecret == "" {
 		log.Fatal("JWT_SECRET is required")
+	}
+	if config.Appwrite.Endpoint == "" {
+		log.Fatal("APPWRITE_ENDPOINT is required")
+	}
+	if config.Appwrite.ProjectID == "" {
+		log.Fatal("APPWRITE_PROJECT_ID is required")
+	}
+	if config.Appwrite.APIKey == "" {
+		log.Fatal("APPWRITE_API_KEY is required")
+	}
+	if config.Appwrite.BucketID == "" {
+		log.Fatal("APPWRITE_BUCKET_ID is required")
 	}
 
 	AppConfig = config
