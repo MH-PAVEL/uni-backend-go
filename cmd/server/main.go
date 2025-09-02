@@ -36,6 +36,11 @@ func main() {
 	_, dbCancel := database.ConnectMongo()
 	defer dbCancel()
 
+	// Create database indexes
+	if err := database.CreateIndexes(); err != nil {
+		log.Printf("Warning: Failed to create database indexes: %v", err)
+	}
+
 	// Global router
 	handler := routes.RegisterRoutes()
 

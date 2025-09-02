@@ -6,15 +6,10 @@ Lightweight backend using Go’s stdlib `http.ServeMux`, MongoDB, and JWT-based 
 
 - Go 1.22+
 - MongoDB running (local or remote)
-- `swag` CLI:
-
-  ```bash
-  go install github.com/swaggo/swag/cmd/swag@latest
-  ```
 
 ## Quick start
 
-### 1) Configure environment
+# Configure environment
 
 There’s a sample file at `.env.sample`. Copy it and fill values:
 
@@ -22,32 +17,72 @@ There’s a sample file at `.env.sample`. Copy it and fill values:
 cp .env.sample .env
 ```
 
-### 2) Run the server
+# Install prerequisites (CLI)
 
-```bash
-go run ./cmd/server
+**Install dev CLIs:**
+
+```cmd
+go install github.com/swaggo/swag/cmd/swag@latest
+go install github.com/air-verse/air@latest
 ```
 
-Server boots at `http://<HOST>:<PORT>`.
+**Fetch project Go modules:**
 
-### 3) API docs (Swagger UI)
-
-After generating docs (see below), open:
-
-```
-http://<HOST>:<PORT>/swagger/index.html
+```cmd
+go mod download
 ```
 
-## Generate Swagger docs
+# Using `make`
 
-```bash
-cd cmd/server
-```
+Your Makefile targets:
 
-```bash
-swag init --generalInfo cmd/server/main.go --dir cmd/server,internal/handlers,internal/routes --output internal/docs --parseInternal --parseDependency
-```
+- **Run server (no reload)**
 
-## Dev tips
+  ```cmd
+  make run
+  ```
 
-- Protected routes use Bearer tokens (Authorization: `Bearer <jwt>`). Your middleware also accepts the `access_token` cookie.
+- **Generate Swagger docs**
+
+  ```cmd
+  make swag
+  ```
+
+- **Run with hot reload (Air)**
+
+  ```cmd
+  make watch
+  ```
+
+- **Clean generated folders**
+
+  ```cmd
+  make clean
+  ```
+
+# Without `make` (raw commands)
+
+- **Run server (no reload)**
+
+  ```cmd
+  go run ./cmd/server
+  ```
+
+- **Generate Swagger docs**
+
+  ```cmd
+  swag init -g ./cmd/server/main.go -o ./internal/docs --parseInternal
+  ```
+
+- **Run with hot reload (Air)**
+
+  ```cmd
+  air -c .air.toml
+  ```
+
+- **Clean generated folders**
+
+  ```cmd
+  if exist internal\docs rmdir /s /q internal\docs
+  if exist tmp rmdir /s /q tmp
+  ```

@@ -33,6 +33,43 @@ definitions:
         example: logged out
         type: string
     type: object
+  handlers.ProfileCompletionRequest:
+    properties:
+      address:
+        example: Dhaka, Bangladesh
+        type: string
+      country:
+        example: Bangladesh
+        type: string
+      fullName:
+        example: John Doe
+        type: string
+      higherEducation:
+        $ref: '#/definitions/models.HigherEducation'
+      hsc:
+        $ref: '#/definitions/models.Education'
+      languageTests:
+        items:
+          $ref: '#/definitions/models.LanguageTest'
+        type: array
+      nid:
+        example: "1234567890123"
+        type: string
+      planningMonthToStart:
+        example: January
+        type: string
+      planningYearToStart:
+        example: "2025"
+        type: string
+      ssc:
+        $ref: '#/definitions/models.Education'
+    type: object
+  handlers.ProfileResponse:
+    properties:
+      message:
+        example: Profile completed successfully
+        type: string
+    type: object
   handlers.SignupRequest:
     properties:
       email:
@@ -45,16 +82,77 @@ definitions:
         example: "01234567890"
         type: string
     type: object
+  models.Education:
+    properties:
+      background:
+        description: science, commerce, arts
+        type: string
+      gpa:
+        type: number
+      institutionName:
+        type: string
+      schoolName:
+        type: string
+    type: object
+  models.HigherEducation:
+    properties:
+      cgpa:
+        type: number
+      department:
+        type: string
+      institutionName:
+        type: string
+      schoolName:
+        type: string
+    type: object
+  models.LanguageTest:
+    properties:
+      score:
+        type: string
+      testType:
+        description: IELTS, TOEFL, etc.
+        type: string
+      testYear:
+        type: string
+    type: object
   models.User:
     properties:
+      address:
+        type: string
+      country:
+        type: string
       createdAt:
         type: string
       email:
         type: string
+      fullName:
+        type: string
+      higherEducation:
+        $ref: '#/definitions/models.HigherEducation'
+      hsc:
+        $ref: '#/definitions/models.Education'
       id:
+        type: string
+      languageTests:
+        description: Language tests
+        items:
+          $ref: '#/definitions/models.LanguageTest'
+        type: array
+      nid:
         type: string
       phone:
         type: string
+      planningMonthToStart:
+        type: string
+      planningYearToStart:
+        type: string
+      profileCompletion:
+        description: Profile completion fields
+        type: boolean
+      ssc:
+        allOf:
+        - $ref: '#/definitions/models.Education'
+        description: Education fields
       updatedAt:
         type: string
     type: object
@@ -114,7 +212,7 @@ paths:
       - auth
   /api/v1/auth/logout:
     post:
-      description: Revoke current refresh token and clear auth cookies.
+      description: Revoke current refresh token and clear auth cookies
       produces:
       - application/json
       responses:
@@ -154,8 +252,7 @@ paths:
       - auth
   /api/v1/auth/refresh:
     post:
-      description: Rotate refresh token and return a new access token (cookies updated).
-        Requires valid refresh token cookie.
+      description: Get a new access token using a valid refresh token
       produces:
       - application/json
       responses:
@@ -212,6 +309,89 @@ paths:
       summary: Signup
       tags:
       - auth
+  /api/v1/profile:
+    get:
+      description: Get the current user's profile information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - profile
+  /api/v1/profile/complete:
+    post:
+      consumes:
+      - application/json
+      description: Complete user profile with additional information after signup
+      parameters:
+      - description: Profile completion payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ProfileCompletionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ProfileResponse'
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: NID already exists
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Complete user profile
+      tags:
+      - profile
+  /api/v1/profile/status:
+    get:
+      description: Check if the current user has completed their profile
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profile completion status
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Check profile completion status
+      tags:
+      - profile
 schemes:
 - http
 securityDefinitions:

@@ -15,6 +15,7 @@ func RegisterRoutes() http.Handler {
 	// Attach different route groups
 	RegisterHealthRoutes(mux)
 	RegisterAuthRoutes(mux)
+	RegisterProfileRoutes(mux)
 	// RegisterUserRoutes(mux)
 
 	// Applied global middlewares (CORS, Logger, RateLimiter)

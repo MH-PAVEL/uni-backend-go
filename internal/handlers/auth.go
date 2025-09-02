@@ -109,11 +109,12 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	doc := bson.M{
-		"email":     req.Email,
-		"phone":     req.Phone,
-		"password":  string(hash),
-		"createdAt": now,
-		"updatedAt": now,
+		"email":             req.Email,
+		"phone":             req.Phone,
+		"password":          string(hash),
+		"profileCompletion": false,
+		"createdAt":         now,
+		"updatedAt":         now,
 	}
 	res, err := users.InsertOne(ctx, doc)
 	if err != nil {
@@ -136,10 +137,11 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 		Token:        access,
 		RefreshToken: refresh,
 		User: bson.M{
-			"id":        uid.Hex(),
-			"email":     req.Email,
-			"phone":     req.Phone,
-			"createdAt": now,
+			"id":                uid.Hex(),
+			"email":             req.Email,
+			"phone":             req.Phone,
+			"profileCompletion": false,
+			"createdAt":         now,
 		},
 	})
 }
@@ -204,10 +206,11 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		Token:        access,
 		RefreshToken: refresh,
 		User: bson.M{
-			"id":        uid.Hex(),
-			"email":     user["email"],
-			"phone":     user["phone"],
-			"createdAt": user["createdAt"],
+			"id":                uid.Hex(),
+			"email":             user["email"],
+			"phone":             user["phone"],
+			"profileCompletion": user["profileCompletion"],
+			"createdAt":         user["createdAt"],
 		},
 	})
 }

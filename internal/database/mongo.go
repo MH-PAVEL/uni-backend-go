@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/MH-PAVEL/uni-backend-go/internal/config"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -42,4 +43,42 @@ func ConnectMongo() (context.Context, context.CancelFunc) {
 // GetCollection returns a MongoDB collection instance
 func GetCollection(dbName, collName string) *mongo.Collection {
 	return Client.Database(dbName).Collection(collName)
+}
+
+// CreateIndexes creates necessary database indexes
+func CreateIndexes() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Create unique index on NID field
+	usersCollection := GetCollection(DbName(), UsersCollection)
+	
+	// Create unique index on NID (National ID)
+	_, err := usersCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "nid", Value: 1}},
+		Options: options.Index().SetUnique(true).SetSparse(true),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create NID index: %w", err)
+	}
+
+	// Create unique index on email
+	_, err = usersCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "email", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create email index: %w", err)
+	}
+
+	// Create unique index on phone
+	_, err = usersCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "phone", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create phone index: %w", err)
+	}
+
+	return nil
 }

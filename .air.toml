@@ -1,0 +1,30 @@
+# .air.toml
+root = "."
+tmp_dir = "tmp"
+
+[build]
+# Build the server entrypoint
+cmd = "go build -o tmp/main.exe ./cmd/server"
+# What to run after building
+bin = "tmp/main.exe"
+
+# Debounce changes a bit so swag/go build aren't spammed
+delay = 1000
+
+# Watch only useful stuff
+include_ext = ["go", "tpl", "tmpl", "html", "env", "yaml", "yml", "json"]
+
+# Don't watch generated or vendor files to avoid rebuild loops
+exclude_dir = ["tmp", "vendor", "internal/docs"]
+exclude_regex = ["_test.go"]
+
+# Run Swagger before each build (optional but convenient)
+pre_cmd = [
+  "swag init -g ./cmd/server/main.go -o ./internal/docs --parseInternal"
+]
+
+# If you prefer: run Swagger after build instead
+# post_cmd = [ "swag init -g ./cmd/server/main.go -o ./internal/docs --parseInternal" ]
+
+# Stop on build error (so you see the error clearly)
+stop_on_error = true

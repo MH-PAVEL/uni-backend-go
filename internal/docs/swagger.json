@@ -85,7 +85,7 @@
         },
         "/api/v1/auth/logout": {
             "post": {
-                "description": "Revoke current refresh token and clear auth cookies.",
+                "description": "Revoke current refresh token and clear auth cookies",
                 "produces": [
                     "application/json"
                 ],
@@ -148,7 +148,7 @@
         },
         "/api/v1/auth/refresh": {
             "post": {
-                "description": "Rotate refresh token and return a new access token (cookies updated). Requires valid refresh token cookie.",
+                "description": "Get a new access token using a valid refresh token",
                 "produces": [
                     "application/json"
                 ],
@@ -235,6 +235,138 @@
                     }
                 }
             }
+        },
+        "/api/v1/profile": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get the current user's profile information",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profile"
+                ],
+                "summary": "Get user profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.User"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/profile/complete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Complete user profile with additional information after signup",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profile"
+                ],
+                "summary": "Complete user profile",
+                "parameters": [
+                    {
+                        "description": "Profile completion payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProfileCompletionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProfileResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "NID already exists",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/profile/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Check if the current user has completed their profile",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profile"
+                ],
+                "summary": "Check profile completion status",
+                "responses": {
+                    "200": {
+                        "description": "Profile completion status",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -285,6 +417,59 @@
                 }
             }
         },
+        "handlers.ProfileCompletionRequest": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "example": "Dhaka, Bangladesh"
+                },
+                "country": {
+                    "type": "string",
+                    "example": "Bangladesh"
+                },
+                "fullName": {
+                    "type": "string",
+                    "example": "John Doe"
+                },
+                "higherEducation": {
+                    "$ref": "#/definitions/models.HigherEducation"
+                },
+                "hsc": {
+                    "$ref": "#/definitions/models.Education"
+                },
+                "languageTests": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.LanguageTest"
+                    }
+                },
+                "nid": {
+                    "type": "string",
+                    "example": "1234567890123"
+                },
+                "planningMonthToStart": {
+                    "type": "string",
+                    "example": "January"
+                },
+                "planningYearToStart": {
+                    "type": "string",
+                    "example": "2025"
+                },
+                "ssc": {
+                    "$ref": "#/definitions/models.Education"
+                }
+            }
+        },
+        "handlers.ProfileResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Profile completed successfully"
+                }
+            }
+        },
         "handlers.SignupRequest": {
             "type": "object",
             "properties": {
@@ -302,20 +487,113 @@
                 }
             }
         },
+        "models.Education": {
+            "type": "object",
+            "properties": {
+                "background": {
+                    "description": "science, commerce, arts",
+                    "type": "string"
+                },
+                "gpa": {
+                    "type": "number"
+                },
+                "institutionName": {
+                    "type": "string"
+                },
+                "schoolName": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.HigherEducation": {
+            "type": "object",
+            "properties": {
+                "cgpa": {
+                    "type": "number"
+                },
+                "department": {
+                    "type": "string"
+                },
+                "institutionName": {
+                    "type": "string"
+                },
+                "schoolName": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.LanguageTest": {
+            "type": "object",
+            "properties": {
+                "score": {
+                    "type": "string"
+                },
+                "testType": {
+                    "description": "IELTS, TOEFL, etc.",
+                    "type": "string"
+                },
+                "testYear": {
+                    "type": "string"
+                }
+            }
+        },
         "models.User": {
             "type": "object",
             "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
                 "createdAt": {
                     "type": "string"
                 },
                 "email": {
                     "type": "string"
                 },
+                "fullName": {
+                    "type": "string"
+                },
+                "higherEducation": {
+                    "$ref": "#/definitions/models.HigherEducation"
+                },
+                "hsc": {
+                    "$ref": "#/definitions/models.Education"
+                },
                 "id": {
+                    "type": "string"
+                },
+                "languageTests": {
+                    "description": "Language tests",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.LanguageTest"
+                    }
+                },
+                "nid": {
                     "type": "string"
                 },
                 "phone": {
                     "type": "string"
+                },
+                "planningMonthToStart": {
+                    "type": "string"
+                },
+                "planningYearToStart": {
+                    "type": "string"
+                },
+                "profileCompletion": {
+                    "description": "Profile completion fields",
+                    "type": "boolean"
+                },
+                "ssc": {
+                    "description": "Education fields",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Education"
+                        }
+                    ]
                 },
                 "updatedAt": {
                     "type": "string"
